@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Details - TechRaptor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <a href="/" class="logo">TechRaptor</a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products">Products</a></li>
+                <li><a href="/orders">My Orders</a></li>
+                <li><a href="/cart" id="cartLink">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
+                <li id="authLinks"><a href="/login">Login</a></li>
+                <li id="userLinks" style="display: none;"><a href="#" id="userEmail"></a></li>
+                <li id="logoutLink" style="display: none;"><a href="#" id="logoutBtn">Logout</a></li>
+                <li id="adminLink" style="display: none;"><a href="/admin">Admin</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="section">
+        <div class="container">
+            <div id="productDetail">
+                <div class="loading">Loading product details...</div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2025 TechRaptor. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const productId = window.location.pathname.split('/').pop();
+            loadProductDetail(productId);
+        });
+
+        function loadProductDetail(productId) {
+            fetch(`/api/products/${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayProductDetail(data.data);
+                    } else {
+                        document.getElementById('productDetail').innerHTML = 
+                            '<p class="loading">Product not found</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading product:', error);
+                    document.getElementById('productDetail').innerHTML = 
+                        '<p class="loading">Failed to load product details</p>';
+                });
+        }
+
+        function displayProductDetail(product) {
+            const container = document.getElementById('productDetail');
+            
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="product-image" style="height: 500px; border-radius: 8px; overflow: hidden;">
+                            ${product.image_url ? 
+                                `<img src="${product.image_url}" alt="${product.product_name}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                                '<div style="display: flex; align-items: center; justify-content: center; height: 100%; background-color: var(--gray-100); font-size: 5rem; color: var(--gray-300);">&#9632;</div>'}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="product-brand" style="font-size: 1rem; margin-bottom: 0.5rem;">${product.brand || 'Tech'}</div>
+                        <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">${product.product_name}</h1>
+                        <div style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 1.5rem;">
+                            Category: ${product.category_name || 'General'}
+                        </div>
+                        <div class="product-price" style="font-size: 3rem; margin-bottom: 1.5rem;">$${parseFloat(product.price).toFixed(2)}</div>
+                        
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong>Stock:</strong> 
+                            <span style="color: ${product.stock_quantity > 0 ? 'var(--gray-700)' : 'var(--gray-500)'}">
+                                ${product.stock_quantity > 0 ? `${product.stock_quantity} available` : 'Out of stock'}
+                            </span>
+                        </div>
+
+                        <div style="margin-bottom: 2rem;">
+                            <label for="quantityInput" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Quantity:</label>
+                            <input type="number" id="quantityInput" value="1" min="1" max="${product.stock_quantity}" 
+                                   class="quantity-input" style="width: 100px;">
+                        </div>
+
+                        <button class="btn" onclick="addToCart(${product.product_id})" 
+                                ${product.stock_quantity === 0 ? 'disabled' : ''}>
+                            Add to Cart
+                        </button>
+                        <button class="btn btn-secondary" onclick="location.href='/products'">
+                            Continue Shopping
+                        </button>
+
+                        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--gray-200);">
+                            <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Description</h3>
+                            <p style="color: var(--gray-700); line-height: 1.8;">${product.description || 'No description available.'}</p>
+                        </div>
+
+                        ${product.specifications ? `
+                            <div style="margin-top: 2rem;">
+                                <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Specifications</h3>
+                                <div style="background-color: var(--gray-50); padding: 1.5rem; border-radius: 8px;">
+                                    <pre style="margin: 0; white-space: pre-wrap; font-family: inherit;">${JSON.stringify(JSON.parse(product.specifications), null, 2)}</pre>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function addToCart(productId) {
+            if (!isLoggedIn()) {
+                showAlert('Please login to add items to cart', 'error');
+                setTimeout(() => location.href = '/login', 1500);
+                return;
+            }
+
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+            const token = localStorage.getItem('token');
+            
+            fetch('/api/cart/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ product_id: productId, quantity: quantity })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('Product added to cart successfully', 'success');
+                    updateCartBadge();
+                } else {
+                    showAlert(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding to cart:', error);
+                showAlert('Failed to add product to cart', 'error');
+            });
+        }
+    </script>
+</body>
+</html>
